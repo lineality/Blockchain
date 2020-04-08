@@ -1,3 +1,4 @@
+
 import hashlib
 import json
 from time import time
@@ -5,7 +6,6 @@ from uuid import uuid4
 
 from flask import Flask, jsonify, request
 
-from miner import*
 
 class Blockchain(object):
     def __init__(self):
@@ -91,6 +91,20 @@ class Blockchain(object):
     def last_block(self):
         return self.chain[-1]
 
+    def proof_of_work(self):
+        """
+        Simple Proof of Work Algorithm
+        Stringify the block and look for a proof.
+        Loop through possibilities, checking each one against `valid_proof`
+        in an effort to find a number that is a valid proof
+        :return: A valid proof for the provided block
+        """
+        block_string = json.dumps(self.last_block, sort_keys=True)
+        proof = 0
+        while not self.valid_proof(block_string, proof):
+            proof += 1
+        return proof
+
     @staticmethod
     def valid_proof(block_string, proof):
         """
@@ -103,11 +117,9 @@ class Blockchain(object):
         correct number of leading zeroes.
         :return: True if the resulting hash is a valid proof, False otherwise
         """
-        block_string = json.dumps(block_string, sort_keys=True)
         guess = f"{block_string}{proof}".encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
-        # returns True/False
-        return guess_hash[:6] == "000000"
+        return guess_hash[:4] == "0000"
 
 
 # Instantiate our Node
@@ -117,110 +129,27 @@ app = Flask(__name__)
 node_identifier = str(uuid4()).replace('-', '')
 
 # Instantiate the Blockchain
-blockchain = Blockchain()  # best name ever
+blockchain = Blockchain()
 
 
-@app.route('/mine', methods=['POST'])
+@app.route('/mine', methods=['GET'])
 def mine():
+    # Run the proof of work algorithm to get the next proof
+    proof = blockchain.proof_of_work()
 
-    # this gets the json object
-    json_obj = request.get_json()  #(force=True)
+    # Forge the new Block by adding it to the chain with the proof
+    previous_hash = blockchain.hash(blockchain.last_block)
+    block = blockchain.new_block(proof, previous_hash)
 
-    # # start set to: None
-    # proof_input = None
-    # id_input = None
-
-    # these lines brake up the json object into variables use-able by python
-    proof_input = json_obj["proof"]
-    id_input = json_obj["id"]
-
-    # check for input
-    if len(proof_input) == 0 or not proof_input:
-        response = {"message": "400 error: missing proof input. You have failed. You are done. Go away."}
-        return jsonify(response), 400
-
-    if len(id_input) == 0 or not id_inpt:
-        response = {"message":"400 error: missing id input."}
-        return jsonify(response), 400
-
-
-    # create is answer_already_found_flag
-    answer_already_found_flag = False
-
-    # answer_ok flag
-    answer_ok = False
-
-    # check the answer (if answer not already found)
-    if answer_already_found_flag == False:
-        # this sets the answer ok flag to T or F
-        answer_ok = valid_proof(last_block, proof_input)
-
-    # check input
-    answer_ok = blockchain.valid_proof(blockchain.last_block, proof_input)
-
-    # if the incoming answer is good, and the answer_already_found_flag is false
-    # then the answer is valid
-    if answer_ok == True and answer_already_found_flag == False:
-        
-        # this puts the new valid block ont he chain
-        # Forge the new Block by adding it to the chain with the proof
-        previous_hash = blockchain.hash(blockchain.last_block)
-        block = blockchain.new_block(proof, previous_hash)
-
-        response = {
-            'message': "New Block Forged",
-            'index': block['index'],
-            'transactions': block['transactions'],
-            'proof': block['proof'],
-            'previous_hash': block['previous_hash'],
-        }
-
-    response = {'message':f'happy trees love {proof_input}{id_}'}
+    response = {
+        'message': "New Block Forged",
+        'index': block['index'],
+        'transactions': block['transactions'],
+        'proof': block['proof'],
+        'previous_hash': block['previous_hash'],
+    }
 
     return jsonify(response), 200
-    
-    # otherwise, invalid 400
-
-
-    # Run the proof of work algorithm to get the next proof
-    # proof = blockchain.proof_of_work()
-
-    # * Use `data = request.get_json()` to pull the data out of the POST
-    # * Note that `request` and `requests` both exist in this project
-    # * Check that 'proof', and 'id' are present
-    # * return a 400 error using `jsonify(response)` with a 'message'
-    # * Return a message indicating success or failure.
-    # Remember, a valid proof should fail for all senders except the first. 
-
-    # # Forge the new Block by adding it to the chain with the proof
-    # previous_hash = blockchain.hash(blockchain.last_block)
-    # block = blockchain.new_block(proof, previous_hash)
-
-    # response = {
-    #     'message': "New Block Forged",
-    #     'index': block['index'],
-    #     'transactions': block['transactions'],
-    #     'proof': block['proof'],
-    #     'previous_hash': block['previous_hash'],
-    # }
-
-    # proof is their dictionary and salt
-    # we checking by running 
-    # 000000 only the first is valid
-
-    # make it a game with one winer
-
-
-
-    #elif id_input is not None and proof_input is not None:
-    elif answer_already_found_flag == True and answer_ok == True:
-        response = {"message":"New Block Forged"}
-        return jsonify(response), 200
-
-    #elif id_input is not None and proof_input is not None:
-    elif answer_already_found_flag == True and answer_ok == False:
-        response = {"message":"200: proof and id recieved. someone beat you to it"}
-        return jsonify(response), 200
 
 
 @app.route('/chain', methods=['GET'])
@@ -231,12 +160,6 @@ def full_chain():
     }
     return jsonify(response), 200
 
-@app.route('/lastblock', methods=['GET'])
-def last_block():
-    response = {
-        'last_block': blockchain.last_block,
-    }
-    return jsonify(response), 200
 
 # Run the program on port 5000
 if __name__ == '__main__':

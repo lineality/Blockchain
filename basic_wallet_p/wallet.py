@@ -1,5 +1,4 @@
 # class lecture solution
-
 import hashlib
 import requests
 import sys

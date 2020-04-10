@@ -1,4 +1,3 @@
-# class lecture solution
 
 import hashlib
 import json
@@ -34,18 +33,18 @@ class Blockchain(object):
 
         if len(self.chain) > 0:
             block_string = json.dumps(self.last_block, sort_keys=True)
-            guess = f"{block_string}{proof}".encode()
+            guess = f'{block_string}{proof}'.encode()
             current_hash = hashlib.sha256(guess).hexdigest()
         else:
             current_hash = ""
 
         block = {
-            "index": len(self.chain) + 1,
-            "timestamp": time(),
-            "transactions": self.current_transactions,
-            "proof": proof,
-            "previous_hash": previous_hash or self.hash(self.chain[-1]),
-            "hash": current_hash,
+            'index': len(self.chain) + 1,
+            'timestamp': time(),
+            'transactions': self.current_transactions,
+            'proof': proof,
+            'previous_hash': previous_hash or self.hash(self.chain[-1]),
+            'hash': current_hash,
         }
 
         # Reset the current list of transactions
@@ -92,10 +91,24 @@ class Blockchain(object):
     def last_block(self):
         return self.chain[-1]
 
+    def proof_of_work(self):
+        """
+        Simple Proof of Work Algorithm
+        Stringify the block and look for a proof.
+        Loop through possibilities, checking each one against `valid_proof`
+        in an effort to find a number that is a valid proof
+        :return: A valid proof for the provided block
+        """
+        block_string = json.dumps(self.last_block, sort_keys=True)
+        proof = 0
+        while not self.valid_proof(block_string, proof):
+            proof += 1
+        return proof
+
     @staticmethod
     def valid_proof(block_string, proof):
         """
-        Validates the Proof:  Does hash(block_string, proof) contain 6
+        Validates the Proof:  Does hash(block_string, proof) contain 3
         leading zeroes?  Return true if the proof is valid
         :param block_string: <string> The stringified block to use to
         check in combination with `proof`
@@ -106,69 +119,48 @@ class Blockchain(object):
         """
         guess = f"{block_string}{proof}".encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
-        return guess_hash[:6] == "000000"
+        return guess_hash[:4] == "0000"
 
 
 # Instantiate our Node
 app = Flask(__name__)
 
 # Generate a globally unique address for this node
-node_identifier = str(uuid4()).replace("-", "")
+node_identifier = str(uuid4()).replace('-', '')
 
 # Instantiate the Blockchain
 blockchain = Blockchain()
 
 
-@app.route("/mine", methods=["POST"])
+@app.route('/mine', methods=['GET'])
 def mine():
     # Run the proof of work algorithm to get the next proof
-    # proof = blockchain.proof_of_work()
+    proof = blockchain.proof_of_work()
 
-    # TODO: GET PROOF FROM CLIENT
-    # data is a dictionary with the POST variables
-    data = request.get_json()
+    # Forge the new Block by adding it to the chain with the proof
+    previous_hash = blockchain.hash(blockchain.last_block)
+    block = blockchain.new_block(proof, previous_hash)
 
-    # Check that 'proof', and 'id' are present
-    if "proof" not in data or "id" not in data:
-        response = {"message": 'Must contain "proof" and "id"'}
-        return jsonify(response), 400
+    response = {
+        'message': "New Block Forged",
+        'index': block['index'],
+        'transactions': block['transactions'],
+        'proof': block['proof'],
+        'previous_hash': block['previous_hash'],
+    }
 
-    proof = data["proof"]
-
-    # Determine if the proof is valid
-    last_block = blockchain.last_block
-    last_block_string = json.dumps(last_block, sort_keys=True)
-
-    if blockchain.valid_proof(last_block_string, proof):
-        # Forge the new Block by adding it to the chain with the proof
-        previous_hash = blockchain.hash(last_block)
-        block = blockchain.new_block(proof, previous_hash)
-
-        response = {
-            "message": "New Block Forged",
-            "index": block["index"],
-            "transactions": block["transactions"],
-            "proof": block["proof"],
-            "previous_hash": block["previous_hash"],
-        }
-        return jsonify(response), 200
-    else:
-        response = {"message": "Invalid proof"}
-        return jsonify(response), 200
-
-
-@app.route("/chain", methods=["GET"])
-def full_chain():
-    response = {"length": len(blockchain.chain), "chain": blockchain.chain}
     return jsonify(response), 200
 
 
-@app.route("/last_block", methods=["GET"])
-def get_last_block():
-    response = {"last_block": blockchain.last_block}
+@app.route('/chain', methods=['GET'])
+def full_chain():
+    response = {
+        'length': len(blockchain.chain),
+        'chain': blockchain.chain
+    }
     return jsonify(response), 200
 
 
 # Run the program on port 5000
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)

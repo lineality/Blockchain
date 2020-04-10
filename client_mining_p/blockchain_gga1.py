@@ -1,11 +1,12 @@
-# class lecture solution
-
 import hashlib
 import json
 from time import time
 from uuid import uuid4
 
 from flask import Flask, jsonify, request
+
+# are we supposed to import from miner.py?
+# from miner import *
 
 
 class Blockchain(object):
@@ -58,34 +59,17 @@ class Blockchain(object):
     def hash(self, block):
         """
         Creates a SHA-256 hash of a Block
-
         :param block": <dict> Block
         "return": <str>
         """
-
-        # Use json.dumps to convert json into a string
-        # Use hashlib.sha256 to create a hash
-        # It requires a `bytes-like` object, which is what
-        # .encode() does.
-        # It converts the Python string into a byte string.
-        # We must make sure that the Dictionary is Ordered,
-        # or we'll have inconsistent hashes
-
-        # TODO: Create the block_string
+        # Create the block_string
         string_object = json.dumps(block, sort_keys=True)
         block_string = string_object.encode()
 
-        # TODO: Hash this string using sha256
+        # Hash this string using sha256
         raw_hash = hashlib.sha256(block_string)
         hex_hash = raw_hash.hexdigest()
 
-        # By itself, the sha256 function returns the hash in a raw string
-        # that will likely include escaped characters.
-        # This can be hard to read, but .hexdigest() converts the
-        # hash to a string of hexadecimal characters, which is
-        # easier to work with and understand
-
-        # TODO: Return the hashed block string in hexadecimal format
         return hex_hash
 
     @property
@@ -94,19 +78,26 @@ class Blockchain(object):
 
     @staticmethod
     def valid_proof(block_string, proof):
-        """
-        Validates the Proof:  Does hash(block_string, proof) contain 6
-        leading zeroes?  Return true if the proof is valid
-        :param block_string: <string> The stringified block to use to
-        check in combination with `proof`
-        :param proof: <int?> The value that when combined with the
-        stringified previous block results in a hash that has the
-        correct number of leading zeroes.
-        :return: True if the resulting hash is a valid proof, False otherwise
-        """
+
+        # Validates the Proof:  Does hash(block_string, proof) contain 3
+        # :return: True if resulting hash is valid, else False
+
+        block_string = json.dumps(block_string, sort_keys=True)
         guess = f"{block_string}{proof}".encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
-        return guess_hash[:6] == "000000"
+        # returns True/False
+        return guess_hash[:3] == "000"
+        # return guess_hash[:6] == "000000"
+
+
+# End of Class
+
+
+# answer_already_found_flag
+answer_already_found_flag = False
+
+# answer_ok flag
+answer_ok = False
 
 
 # Instantiate our Node
@@ -116,33 +107,51 @@ app = Flask(__name__)
 node_identifier = str(uuid4()).replace("-", "")
 
 # Instantiate the Blockchain
-blockchain = Blockchain()
+blockchain = Blockchain()  # best name ever
 
 
 @app.route("/mine", methods=["POST"])
 def mine():
-    # Run the proof of work algorithm to get the next proof
-    # proof = blockchain.proof_of_work()
 
-    # TODO: GET PROOF FROM CLIENT
-    # data is a dictionary with the POST variables
-    data = request.get_json()
+    # # dummy output
+    # response = {"message": "New Block Forged"}
+    # return jsonify(response), 200
 
-    # Check that 'proof', and 'id' are present
-    if "proof" not in data or "id" not in data:
-        response = {"message": 'Must contain "proof" and "id"'}
+    # this gets the json object
+    json_obj = request.get_json()  # (force=True)
+    # these lines brake up the json object into variables use-able by python
+    proof_input = json_obj["proof"]
+    id_input = json_obj["id"]
+
+    # check for input, give error if input missing
+    if not proof_input:
+        response = {"message": "400 error: missing proof input."}
         return jsonify(response), 400
 
-    proof = data["proof"]
+    if not id_input:
+        response = {"message": "400 error: missing id input."}
+        return jsonify(response), 400
 
-    # Determine if the proof is valid
-    last_block = blockchain.last_block
-    last_block_string = json.dumps(last_block, sort_keys=True)
+    # # test: validate the sumbission
+    # if answer_already_found_flag is False:
 
-    if blockchain.valid_proof(last_block_string, proof):
-        # Forge the new Block by adding it to the chain with the proof
-        previous_hash = blockchain.hash(last_block)
-        block = blockchain.new_block(proof, previous_hash)
+    # inspection
+    print("checking hash")
+
+    # this sets the answer ok flag to T or F
+    answer_ok = blockchain.valid_proof(blockchain.last_block, proof_input)
+
+    print("answer_ok", answer_ok)
+
+    if answer_ok is True:
+
+        # inspection
+        print("test passed")
+
+        previous_hash = blockchain.hash(blockchain.last_block)
+
+        # add new block to chain
+        block = blockchain.new_block(proof_input, previous_hash)
 
         response = {
             "message": "New Block Forged",
@@ -151,10 +160,19 @@ def mine():
             "proof": block["proof"],
             "previous_hash": block["previous_hash"],
         }
+
         return jsonify(response), 200
-    else:
-        response = {"message": "Invalid proof"}
-        return jsonify(response), 200
+
+    # else:
+    #     response = {"message": "400 error: something bad happened..."}
+    #     return jsonify(response), 400
+
+    # otherwise, invalid 400
+
+    # # elif id_input is not None and proof_input is not None:
+    # elif answer_already_found_flag is True and answer_ok is True:
+    #     response = {"message": "New Block Forged"}
+    #     return jsonify(response), 200
 
 
 @app.route("/chain", methods=["GET"])
@@ -163,9 +181,11 @@ def full_chain():
     return jsonify(response), 200
 
 
-@app.route("/last_block", methods=["GET"])
-def get_last_block():
-    response = {"last_block": blockchain.last_block}
+@app.route("/lastblock", methods=["GET"])
+def last_block():
+    response = {
+        "last_block": blockchain.last_block,
+    }
     return jsonify(response), 200
 
 
